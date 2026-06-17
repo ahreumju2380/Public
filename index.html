@@ -34,7 +34,8 @@
                 <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">WORK-UP 프로그램 입/퇴실 모니터링 대시보드</h1>
                 <p class="text-slate-500 text-xs mt-0.5">학습자의 2일차 과정 입실 및 퇴실 현황을 실시간으로 실시간 관리합니다.</p>
             </div>
-            <div class="flex flex-wrap gap-1.5">
+            <div class="flex flex-wrap gap-1.5 items-center">
+                <span id="auto-refresh-timer" class="text-[10px] text-blue-600 bg-blue-50 border border-blue-100 px-2 py-1 rounded-lg font-bold font-mono shadow-sm">30초 후 갱신</span>
                 <button id="download-btn" onclick="downloadAttendanceCSV()" class="flex items-center gap-1.5 bg-emerald-600 text-white px-3.5 py-1.5 rounded-lg font-bold shadow hover:bg-emerald-700 transition-all text-xs">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                     결과 다운로드
@@ -153,11 +154,30 @@
             scriptUrl: 'https://script.google.com/macros/s/AKfycbyfunJwOJL4wlYMUc37MNDbEt69H2vS-bSh67ezYuny_72VrzZ_PHTVMClKqBTtJ0Ib/exec'
         };
 
+        let autoRefreshCountdown = 30;
+
         window.onload = () => {
             updateSessionFilter();
             render();
             fetchSheetData(); 
+            startAutoRefreshInterval();
         };
+
+        function startAutoRefreshInterval() {
+            const timerEl = document.getElementById('auto-refresh-timer');
+            setInterval(() => {
+                if (!state.isLoading) {
+                    autoRefreshCountdown--;
+                    if (autoRefreshCountdown <= 0) {
+                        autoRefreshCountdown = 30;
+                        fetchSheetData();
+                    }
+                    if (timerEl) {
+                        timerEl.textContent = `${autoRefreshCountdown}초 후 갱신`;
+                    }
+                }
+            }, 1000);
+        }
 
         // 🚨 이틀치 현황판 공간 최대 확보를 위해 "YY.MM.DD." 초슬림 날짜 포맷 구현
         function formatDisplayTime(timeStr) {
@@ -252,6 +272,10 @@
                 btn.disabled = false;
                 icon.classList.remove('animate-spin-custom');
                 text.textContent = '데이터 새로고침';
+                // 🚨 수동 또는 자동 새로고침 완료 시 카운트다운을 다시 30초로 정상 리셋
+                autoRefreshCountdown = 30;
+                const timerEl = document.getElementById('auto-refresh-timer');
+                if (timerEl) timerEl.textContent = `30초 후 갱신`;
                 render();
             }
         }
