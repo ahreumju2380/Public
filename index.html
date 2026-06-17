@@ -8,93 +8,95 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; letter-spacing: -0.025em; }
         .glass-card { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border: 1px solid #e2e8f0; border-radius: 1rem; }
-        .status-badge { padding: 0.15rem 0.6rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; line-height: 1.2; }
+        
+        /* 배지 디자인을 더 밀도 높고 직관적으로 초슬림 조정 */
+        .status-badge { padding: 0.12rem 0.4rem; border-radius: 6px; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; gap: 2px; line-height: 1; white-space: nowrap; }
         .status-present { background-color: #dcfce7; color: #166534; }
         .status-checkout { background-color: #dbeafe; color: #1e40af; }
         .status-absent { background-color: #fee2e2; color: #991b1b; }
         
-        /* 슬림한 수동 버튼 스타일 */
-        .btn-manual { font-size: 10px; background-color: #f8fafc; color: #64748b; padding: 2px 6px; border-radius: 4px; border: 1px solid #e2e8f0; transition: all 0.2s; cursor: pointer; white-space: nowrap; }
-        .btn-manual:hover { background-color: #f1f5f9; border-color: #cbd5e1; }
+        /* 찌그러짐을 없애기 위해 수동/취소 버튼을 초소형 마이크로 규격으로 디자인 */
+        .btn-manual { font-size: 9px; font-weight: 600; background-color: #f8fafc; color: #64748b; padding: 1px 4px; border-radius: 4px; border: 1px solid #e2e8f0; transition: all 0.15s ease-in-out; cursor: pointer; white-space: nowrap; line-height: 1.2; }
+        .btn-manual:hover { background-color: #f1f5f9; border-color: #cbd5e1; color: #334155; }
         .btn-cancel { border-color: #fecaca; color: #ef4444; background-color: #fff; }
-        .btn-cancel:hover { background-color: #fef2f2; }
+        .btn-cancel:hover { background-color: #fef2f2; border-color: #fca5a5; }
         
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .animate-spin-custom { animation: spin 1s linear infinite; }
     </style>
 </head>
-<body class="p-4 md:p-8">
+<body class="p-4 md:p-6">
     <div id="app" class="max-w-6xl mx-auto">
-        <header class="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+        <header class="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
             <div>
-                <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">WORK-UP 프로그램 입/퇴실 모니터링 대시보드</h1>
-                <p class="text-slate-500 mt-1">학습자의 2일차 과정 입실 및 퇴실 현황을 실시간으로 실시간 관리합니다.</p>
+                <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">WORK-UP 프로그램 입/퇴실 모니터링 대시보드</h1>
+                <p class="text-slate-500 text-xs mt-0.5">학습자의 2일차 과정 입실 및 퇴실 현황을 실시간으로 실시간 관리합니다.</p>
             </div>
-            <div class="flex flex-wrap gap-2">
-                <button id="download-btn" onclick="downloadAttendanceCSV()" class="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold shadow hover:bg-emerald-700 transition-all text-sm">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+            <div class="flex flex-wrap gap-1.5">
+                <button id="download-btn" onclick="downloadAttendanceCSV()" class="flex items-center gap-1.5 bg-emerald-600 text-white px-3.5 py-1.5 rounded-lg font-bold shadow hover:bg-emerald-700 transition-all text-xs">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                     결과 다운로드
                 </button>
-                <button id="refresh-btn" onclick="fetchSheetData()" class="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl font-bold shadow hover:bg-blue-700 transition-all text-sm">
-                    <svg id="refresh-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                <button id="refresh-btn" onclick="fetchSheetData()" class="flex items-center gap-1.5 bg-blue-600 text-white px-3.5 py-1.5 rounded-lg font-bold shadow hover:bg-blue-700 transition-all text-xs">
+                    <svg id="refresh-icon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                     <span id="refresh-text">데이터 새로고침</span>
                 </button>
             </div>
         </header>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div class="space-y-6">
                 <!-- 마스터 명단 실시간 연동 카드 -->
-                <div class="glass-card p-6 shadow-sm border-l-4 border-blue-500">
-                    <h2 class="text-lg font-bold mb-4 flex items-center gap-2 text-slate-800">
-                        <svg class="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"></path></svg>
+                <div class="glass-card p-5 shadow-sm border-l-4 border-blue-500">
+                    <h2 class="text-sm font-bold mb-3 flex items-center gap-1.5 text-slate-800">
+                        <svg class="w-4 h-4 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"></path></svg>
                         학습자 마스터 명단 (실시간 연동)
                     </h2>
-                    <div class="bg-slate-50 p-4 rounded-xl text-center border border-slate-100 mb-2">
-                        <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">구글 시트 연동 인원</p>
-                        <p id="master-count" class="text-2xl font-black text-blue-600">0명</p>
+                    <div class="bg-slate-50 p-3 rounded-lg text-center border border-slate-100 mb-2">
+                        <p class="text-[9px] text-slate-400 uppercase font-bold tracking-wider">구글 시트 연동 인원</p>
+                        <p id="master-count" class="text-xl font-black text-blue-600">0명</p>
                     </div>
-                    <p class="text-[11px] text-slate-400 leading-tight">
+                    <p class="text-[10px] text-slate-400 leading-tight">
                         * 구글 스프레드시트의 <span class="font-semibold text-slate-600">'마스터명단'</span> 시트에서 최신 대상자 데이터를 실시간으로 자동 동기화합니다.
                     </p>
                 </div>
 
-                <!-- 전체 현황 요약 카드 (이틀 과정) -->
-                <div id="stats-container" class="glass-card p-6 shadow-sm">
-                    <h2 class="text-lg font-bold mb-4">전체 현황 요약 (이틀 과정)</h2>
-                    <div class="space-y-4">
+                <!-- 전체 현황 요약 카드 -->
+                <div id="stats-container" class="glass-card p-5 shadow-sm">
+                    <h2 class="text-sm font-bold mb-3">전체 현황 요약 (이틀 과정)</h2>
+                    <div class="space-y-3.5">
                         <div>
-                            <div class="flex justify-between text-sm mb-1">
+                            <div class="flex justify-between text-xs mb-1">
                                 <span class="text-slate-500">전체 출석 완료율</span>
                                 <span id="attendance-percent" class="font-bold text-green-600">0%</span>
                             </div>
-                            <div class="w-full bg-slate-100 rounded-full h-2.5">
-                                <div id="attendance-bar" class="bg-green-500 h-2.5 rounded-full transition-all duration-1000" style="width: 0%"></div>
+                            <div class="w-full bg-slate-100 rounded-full h-2">
+                                <div id="attendance-bar" class="bg-green-500 h-2 rounded-full transition-all duration-1000" style="width: 0%"></div>
                             </div>
                         </div>
-                        <div class="space-y-3 pt-2">
-                            <div class="bg-slate-50 p-3 rounded-xl flex justify-between items-center border border-slate-100">
-                                <span class="text-xs text-slate-500 font-bold">총 관리 대상</span>
-                                <span id="total-count" class="text-base font-extrabold text-slate-800">0명</span>
+                        <div class="space-y-2 pt-1">
+                            <div class="bg-slate-50 p-2.5 rounded-lg flex justify-between items-center border border-slate-100">
+                                <span class="text-[11px] text-slate-500 font-bold">총 관리 대상</span>
+                                <span id="total-count" class="text-sm font-extrabold text-slate-800">0명</span>
                             </div>
-                            <div class="grid grid-cols-2 gap-2">
-                                <div class="bg-green-50 p-3 rounded-xl text-center border border-green-100">
-                                    <p class="text-[9px] text-green-500 uppercase font-bold">1일차 입실</p>
-                                    <p id="present1-count" class="text-lg font-black text-green-600">0</p>
+                            <div class="grid grid-cols-2 gap-1.5">
+                                <div class="bg-green-50/50 p-2 rounded-lg text-center border border-green-100">
+                                    <p class="text-[8px] text-green-500 uppercase font-bold">1일차 입실</p>
+                                    <p id="present1-count" class="text-sm font-black text-green-600">0</p>
                                 </div>
-                                <div class="bg-blue-50 p-3 rounded-xl text-center border border-blue-100">
-                                    <p class="text-[9px] text-blue-500 uppercase font-bold">1일차 퇴실</p>
-                                    <p id="checkout1-count" class="text-lg font-black text-blue-600">0</p>
+                                <div class="bg-blue-50/50 p-2 rounded-lg text-center border border-blue-100">
+                                    <p class="text-[8px] text-blue-500 uppercase font-bold">1일차 퇴실</p>
+                                    <p id="checkout1-count" class="text-sm font-black text-blue-600">0</p>
                                 </div>
-                                <div class="bg-emerald-50 p-3 rounded-xl text-center border border-emerald-100">
-                                    <p class="text-[9px] text-emerald-500 uppercase font-bold">2일차 입실</p>
-                                    <p id="present2-count" class="text-lg font-black text-emerald-600">0</p>
+                                <div class="bg-emerald-50/50 p-2 rounded-lg text-center border border-emerald-100">
+                                    <p class="text-[8px] text-emerald-500 uppercase font-bold">2일차 입실</p>
+                                    <p id="present2-count" class="text-sm font-black text-emerald-600">0</p>
                                 </div>
-                                <div class="bg-indigo-50 p-3 rounded-xl text-center border border-indigo-100">
-                                    <p class="text-[9px] text-indigo-500 uppercase font-bold">2일차 퇴실</p>
-                                    <p id="checkout2-count" class="text-lg font-black text-indigo-600">0</p>
+                                <div class="bg-indigo-50/50 p-2 rounded-lg text-center border border-indigo-100">
+                                    <p class="text-[8px] text-indigo-500 uppercase font-bold">2일차 퇴실</p>
+                                    <p id="checkout2-count" class="text-sm font-black text-indigo-600">0</p>
                                 </div>
                             </div>
                         </div>
@@ -102,31 +104,32 @@
                 </div>
             </div>
 
-            <!-- 메인 현황 테이블 (6열 확장 레이아웃) -->
+            <!-- 메인 현황 테이블 (여백 극소화 6열 압축 레이아웃) -->
             <div class="lg:col-span-2 space-y-6">
                 <div class="glass-card shadow-sm overflow-hidden">
-                    <div class="p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <h2 class="text-lg font-bold">입/퇴실 상세 현황 (이틀 과정)</h2>
-                        <div class="flex gap-2">
-                            <select id="session-filter" onchange="render()" class="text-sm border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500">
+                    <div class="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white">
+                        <h2 class="text-sm font-bold text-slate-800">입/퇴실 상세 현황 (이틀 과정)</h2>
+                        <div class="flex gap-1.5">
+                            <select id="session-filter" onchange="render()" class="text-xs border rounded-lg px-2 py-1.5 outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50">
                                 <option value="all">모든 차수</option>
                             </select>
-                            <input type="text" id="search-filter" oninput="render()" placeholder="이름/사번 검색..." class="text-sm border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500" />
+                            <input type="text" id="search-filter" oninput="render()" placeholder="이름/사번 검색..." class="text-xs border rounded-lg px-2 py-1.5 outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 w-36 sm:w-44" />
                         </div>
                     </div>
+                    <!-- overflow-x를 지원하되 최대한 가로 스크롤을 막기 위해 최소 너비 타이트 조정 -->
                     <div class="overflow-x-auto min-h-[400px]">
-                        <table class="w-full text-left border-collapse min-w-[800px]">
+                        <table class="w-full text-left border-collapse table-fixed min-w-[760px]">
                             <thead>
-                                <tr class="bg-slate-50 text-slate-500 text-[11px] uppercase tracking-wider font-bold">
-                                    <th class="px-6 py-4">학습자 정보</th>
-                                    <th class="px-6 py-4">신청 차수</th>
-                                    <th class="px-6 py-4">1일차 입실</th>
-                                    <th class="px-6 py-4">1일차 퇴실</th>
-                                    <th class="px-6 py-4">2일차 입실</th>
-                                    <th class="px-6 py-4">2일차 퇴실</th>
+                                <tr class="bg-slate-50 text-slate-500 text-[10px] uppercase tracking-wider font-bold border-b border-slate-100">
+                                    <th class="px-2.5 py-3 w-[18%]">학습자 정보</th>
+                                    <th class="px-2.5 py-3 w-[12%]">신청 차수</th>
+                                    <th class="px-2.5 py-3 w-[17.5%]">1일차 입실</th>
+                                    <th class="px-2.5 py-3 w-[17.5%]">1일차 퇴실</th>
+                                    <th class="px-2.5 py-3 w-[17.5%]">2일차 입실</th>
+                                    <th class="px-2.5 py-3 w-[17.5%]">2일차 퇴실</th>
                                 </tr>
                             </thead>
-                            <tbody id="attendance-table-body" class="divide-y divide-slate-100 text-sm">
+                            <tbody id="attendance-table-body" class="divide-y divide-slate-100 text-xs">
                                 <tr>
                                     <td colspan="6" class="px-6 py-12 text-center text-slate-400">
                                         구글 시트로부터 데이터를 연동하는 중입니다...
@@ -146,7 +149,6 @@
             attendanceData: [],
             manualEntries: JSON.parse(localStorage.getItem('attendance_manual_records')) || {},
             isLoading: false,
-            // 본인의 고유 웹 앱 URL 주소 유지
             scriptUrl: 'https://script.google.com/macros/s/AKfycbyfunJwOJL4wlYMUc37MNDbEt69H2vS-bSh67ezYuny_72VrzZ_PHTVMClKqBTtJ0Ib/exec'
         };
 
@@ -156,38 +158,35 @@
             fetchSheetData(); 
         };
 
-        // ISO 및 UTC 표준 시간대 규격을 무시하고 순수 날짜(YYYY. MM. DD.)만 추출하는 안심 필터
+        // 🚨 이틀치 현황판 공간 최대 확보를 위해 "YY.MM.DD." 초슬림 날짜 포맷 구현
         function formatDisplayTime(timeStr) {
             if (!timeStr || timeStr === '-') return '-';
-            
-            // 수동 정보는 그대로 유지
             if (timeStr.includes('(수동)')) {
                 return timeStr;
             }
-            
             try {
-                // 어떤 날짜 문자열이 들어오더라도 KST 로컬 기준 "년. 월. 일." 만 깔끔하게 반환
                 const dateObj = new Date(timeStr);
                 if (!isNaN(dateObj.getTime())) {
+                    // "26. 06. 17." 규격을 생성한 뒤 공백을 없애서 최종 "26.06.17." 8글자로 대폭 축소
                     return dateObj.toLocaleDateString('ko-KR', {
-                        year: 'numeric',
+                        year: '2-digit',
                         month: '2-digit',
                         day: '2-digit'
-                    }).trim(); // 결과 예: "2026. 06. 17."
+                    }).replace(/\s/g, '');
                 }
             } catch (e) {
                 console.error("날짜 파싱 에러:", e);
             }
             
-            // 날짜 파싱 예외 Regex 백업 (정규식 기반 10자리 추출 후 포맷 통일)
-            const dateMatch = timeStr.match(/^(\d{4})[./-](\d{2})[./-](\d{2})/);
+            const dateMatch = timeStr.match(/^(\d{4}|\d{2})[./-](\d{2})[./-](\d{2})/);
             if (dateMatch) {
-                return `${dateMatch[1]}. ${dateMatch[2]}. ${dateMatch[3]}.`;
+                const shortYear = dateMatch[1].length === 4 ? dateMatch[1].slice(-2) : dateMatch[1];
+                return `${shortYear}.${dateMatch[2]}.${dateMatch[3]}.`;
             }
             return timeStr;
         }
 
-        // 수동 제어 토글 시스템 (시간 생략하고 단정한 날짜 포맷팅 반영)
+        // 수동 제어 시스템 (초소형 레이아웃 날짜 반영)
         function toggleManual(empId, type) {
             if (state.manualEntries[empId] && state.manualEntries[empId][type]) {
                 delete state.manualEntries[empId][type];
@@ -195,11 +194,11 @@
             } else {
                 const now = new Date();
                 const dateStr = now.toLocaleDateString('ko-KR', {
-                    year: 'numeric', month: '2-digit', day: '2-digit'
-                }).trim();
+                    year: '2-digit', month: '2-digit', day: '2-digit'
+                }).replace(/\s/g, '');
                 
                 if (!state.manualEntries[empId]) state.manualEntries[empId] = {};
-                state.manualEntries[empId][type] = dateStr + " (수동)";
+                state.manualEntries[empId][type] = dateStr + "(수동)";
             }
             localStorage.setItem('attendance_manual_records', JSON.stringify(state.manualEntries));
             render();
@@ -269,7 +268,6 @@
             });
         }
 
-        // 시트 데이터를 타임스탬프 시간 순서대로 안전 정렬하여 4단계로 Chronological 매핑
         function getProcessedData() {
             const sessionVal = document.getElementById('session-filter').value;
             const searchVal = document.getElementById('search-filter').value.toLowerCase();
@@ -283,7 +281,6 @@
             return filteredMaster.map(student => {
                 const studentEntries = state.attendanceData.filter(a => a.empId === student.empId);
                 
-                // 시간 순서대로 안전 정렬 (1: 1일차입실, 2: 1일차퇴실, 3: 2일차입실, 4: 2일차퇴실)
                 const sortedEntries = studentEntries.slice().sort((a, b) => {
                     const tA = a.timestamp ? a.timestamp.replace(' ', 'T') : '';
                     const tB = b.timestamp ? b.timestamp.replace(' ', 'T') : '';
@@ -342,15 +339,15 @@
                 let in1Content = '';
                 if (item.checkIn1) {
                     in1Content = `
-                        <div class="flex items-center gap-1.5 flex-wrap">
-                            <span class="status-badge status-present">입실완료</span>
-                            <span class="text-[10px] text-slate-400 font-mono">${item.checkIn1}</span>
+                        <div class="flex items-center gap-1">
+                            <span class="status-badge status-present">입실</span>
+                            <span class="text-[9px] text-slate-400 font-mono tracking-tighter">${item.checkIn1}</span>
                             ${item.isManualIn1 ? `<button onclick="toggleManual('${item.empId}', 'in')" class="btn-manual btn-cancel">취소</button>` : ''}
                         </div>
                     `;
                 } else {
                     in1Content = `
-                        <div class="flex items-center gap-2">
+                        <div class="flex items-center gap-1">
                             <span class="status-badge status-absent">미출석</span>
                             <button onclick="toggleManual('${item.empId}', 'in')" class="btn-manual">수동</button>
                         </div>
@@ -361,16 +358,16 @@
                 let out1Content = '';
                 if (item.checkOut1) {
                     out1Content = `
-                        <div class="flex items-center gap-1.5 flex-wrap">
-                            <span class="status-badge status-checkout">퇴실완료</span>
-                            <span class="text-[10px] text-slate-400 font-mono">${item.checkOut1}</span>
+                        <div class="flex items-center gap-1">
+                            <span class="status-badge status-checkout">퇴실</span>
+                            <span class="text-[9px] text-slate-400 font-mono tracking-tighter">${item.checkOut1}</span>
                             ${item.isManualOut1 ? `<button onclick="toggleManual('${item.empId}', 'out')" class="btn-manual btn-cancel">취소</button>` : ''}
                         </div>
                     `;
                 } else {
                     out1Content = `
-                        <div class="flex items-center gap-2">
-                            <span class="text-slate-300 text-xs mr-1">-</span>
+                        <div class="flex items-center gap-1">
+                            <span class="text-slate-300 text-xs px-1">-</span>
                             <button onclick="toggleManual('${item.empId}', 'out')" class="btn-manual">수동</button>
                         </div>
                     `;
@@ -380,15 +377,15 @@
                 let in2Content = '';
                 if (item.checkIn2) {
                     in2Content = `
-                        <div class="flex items-center gap-1.5 flex-wrap">
-                            <span class="status-badge status-present">입실완료</span>
-                            <span class="text-[10px] text-slate-400 font-mono">${item.checkIn2}</span>
+                        <div class="flex items-center gap-1">
+                            <span class="status-badge status-present">입실</span>
+                            <span class="text-[9px] text-slate-400 font-mono tracking-tighter">${item.checkIn2}</span>
                             ${item.isManualIn2 ? `<button onclick="toggleManual('${item.empId}', 'in2')" class="btn-manual btn-cancel">취소</button>` : ''}
                         </div>
                     `;
                 } else {
                     in2Content = `
-                        <div class="flex items-center gap-2">
+                        <div class="flex items-center gap-1">
                             <span class="status-badge status-absent">미출석</span>
                             <button onclick="toggleManual('${item.empId}', 'in2')" class="btn-manual">수동</button>
                         </div>
@@ -399,31 +396,32 @@
                 let out2Content = '';
                 if (item.checkOut2) {
                     out2Content = `
-                        <div class="flex items-center gap-1.5 flex-wrap">
-                            <span class="status-badge status-checkout">퇴실완료</span>
-                            <span class="text-[10px] text-slate-400 font-mono">${item.checkOut2}</span>
+                        <div class="flex items-center gap-1">
+                            <span class="status-badge status-checkout">퇴실</span>
+                            <span class="text-[9px] text-slate-400 font-mono tracking-tighter">${item.checkOut2}</span>
                             ${item.isManualOut2 ? `<button onclick="toggleManual('${item.empId}', 'out2')" class="btn-manual btn-cancel">취소</button>` : ''}
                         </div>
                     `;
                 } else {
                     out2Content = `
-                        <div class="flex items-center gap-2">
-                            <span class="text-slate-300 text-xs mr-1">-</span>
+                        <div class="flex items-center gap-1">
+                            <span class="text-slate-300 text-xs px-1">-</span>
                             <button onclick="toggleManual('${item.empId}', 'out2')" class="btn-manual">수동</button>
                         </div>
                     `;
                 }
 
+                // 테이블 내부의 패딩을 px-2.5로 대폭 좁혀 미적으로 편안한 구도를 창조
                 row.innerHTML = `
-                    <td class="px-6 py-3">
+                    <td class="px-2.5 py-2.5">
                         <div class="font-bold text-slate-800 leading-tight">${item.name}</div>
-                        <div class="text-[10px] text-slate-400 font-mono">${item.empId}</div>
+                        <div class="text-[9px] text-slate-400 font-mono tracking-tight">${item.empId}</div>
                     </td>
-                    <td class="px-6 py-3 text-slate-600 font-medium text-xs">${item.session || '-'}</td>
-                    <td class="px-6 py-3">${in1Content}</td>
-                    <td class="px-6 py-3">${out1Content}</td>
-                    <td class="px-6 py-3">${in2Content}</td>
-                    <td class="px-6 py-3">${out2Content}</td>
+                    <td class="px-2.5 py-2.5 text-slate-600 font-medium text-[11px] truncate">${item.session || '-'}</td>
+                    <td class="px-2.5 py-2.5">${in1Content}</td>
+                    <td class="px-2.5 py-2.5">${out1Content}</td>
+                    <td class="px-2.5 py-2.5">${in2Content}</td>
+                    <td class="px-2.5 py-2.5">${out2Content}</td>
                 `;
                 tableBody.appendChild(row);
             });
