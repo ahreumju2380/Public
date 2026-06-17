@@ -29,7 +29,7 @@
     <div id="app" class="max-w-6xl mx-auto">
         <header class="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
             <div>
-                <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">출석/퇴실 모니터링 대시보드</h1>
+                <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">WORK-UP 프로그램 출석/퇴실 모니터링 대시보드</h1>
                 <p class="text-slate-500 mt-1">학습자의 입실 및 퇴실 현황을 실시간으로 관리합니다.</p>
             </div>
             <div class="flex flex-wrap gap-2">
@@ -132,7 +132,7 @@
             attendanceData: [],
             manualEntries: JSON.parse(localStorage.getItem('attendance_manual_records')) || {},
             isLoading: false,
-            // 전달해주신 고유 웹 앱 URL 주소로 교체 적용했습니다.
+            // 본인의 고유 웹 앱 URL 주소를 연동해 두었습니다.
             scriptUrl: 'https://script.google.com/macros/s/AKfycbyfunJwOJL4wlYMUc37MNDbEt69H2vS-bSh67ezYuny_72VrzZ_PHTVMClKqBTtJ0Ib/exec'
         };
 
@@ -141,6 +141,35 @@
             render();
             fetchSheetData(); 
         };
+
+        // ISO 및 UTC 표준 시간 문자열을 한글 포맷 KST 시간으로 교정하는 프론트엔드 필터
+        function formatDisplayTime(timeStr) {
+            if (!timeStr || timeStr === '-') return '-';
+            
+            // 이미 한글식 표현(오전/오후)이나 수동 마킹이 되어있다면 그대로 리턴
+            if (timeStr.includes('오전') || timeStr.includes('오후') || timeStr.includes('수동')) {
+                return timeStr;
+            }
+            
+            try {
+                // ISO 8601 규격 문자열인 경우 한국 로컬 시각으로 재생성
+                const dateObj = new Date(timeStr);
+                if (!isNaN(dateObj.getTime())) {
+                    return dateObj.toLocaleString('ko-KR', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: true
+                    });
+                }
+            } catch (e) {
+                console.error("시간 형식 보정 에러:", e);
+            }
+            return timeStr;
+        }
 
         function toggleManual(empId, type) {
             if (state.manualEntries[empId] && state.manualEntries[empId][type]) {
@@ -241,8 +270,9 @@
 
                 return {
                     ...student,
-                    checkIn: manual.in || sheetIn,
-                    checkOut: manual.out || sheetOut,
+                    // 스프레드시트 원본 시간 기록값을 안전 변환 필터에 통과시킴
+                    checkIn: manual.in || (sheetIn ? formatDisplayTime(sheetIn) : null),
+                    checkOut: manual.out || (sheetOut ? formatDisplayTime(sheetOut) : null),
                     isManualIn: !!manual.in,
                     isManualOut: !!manual.out
                 };
@@ -284,80 +314,3 @@
                         </div>
                     `;
                 } else {
-                    inContent = `
-                        <div class="flex items-center gap-2">
-                            <span class="status-badge status-absent">미출석</span>
-                            <button onclick="toggleManual('${item.empId}', 'in')" class="btn-manual">수동</button>
-                        </div>
-                    `;
-                }
-
-                // 퇴실
-                let outContent = '';
-                if (item.checkOut) {
-                    outContent = `
-                        <div class="flex items-center gap-1.5 flex-wrap">
-                            <span class="status-badge status-checkout">퇴실완료</span>
-                            <span class="text-[11px] text-slate-400 font-mono">${item.checkOut}</span>
-                            ${item.isManualOut ? `<button onclick="toggleManual('${item.empId}', 'out')" class="btn-manual btn-cancel">취소</button>` : ''}
-                        </div>
-                    `;
-                } else {
-                    outContent = `
-                        <div class="flex items-center gap-2">
-                            <span class="text-slate-300 text-xs mr-1">-</span>
-                            ${item.checkIn ? `<button onclick="toggleManual('${item.empId}', 'out')" class="btn-manual">수동</button>` : ''}
-                        </div>
-                    `;
-                }
-
-                row.innerHTML = `
-                    <td class="px-6 py-3">
-                        <div class="font-bold text-slate-800 leading-tight">${item.name}</div>
-                        <div class="text-[10px] text-slate-400 font-mono">${item.empId}</div>
-                    </td>
-                    <td class="px-6 py-3 text-slate-600 font-medium text-xs">${item.session || '-'}</td>
-                    <td class="px-6 py-3">${inContent}</td>
-                    <td class="px-6 py-3">${outContent}</td>
-                `;
-                tableBody.appendChild(row);
-            });
-
-            const total = processed.length || 0;
-            const percent = total > 0 ? Math.round((presentCount / total) * 100) : 0;
-            document.getElementById('total-count').textContent = total;
-            document.getElementById('present-count').textContent = presentCount;
-            document.getElementById('checkout-count').textContent = checkoutCount;
-            document.getElementById('attendance-percent').textContent = `${percent}%`;
-            document.getElementById('attendance-bar').style.width = `${percent}%`;
-        }
-
-        function downloadAttendanceCSV() {
-            const sessionVal = document.getElementById('session-filter').value;
-            const sessionName = sessionVal === 'all' ? '전체차수' : sessionVal;
-            const now = new Date();
-            const dateStr = now.getFullYear().toString().slice(-2) + 
-                            (now.getMonth() + 1).toString().padStart(2, '0') + 
-                            now.getDate().toString().padStart(2, '0');
-
-            const processed = getProcessedData();
-            const csvRows = processed.map(item => ({
-                '성명': item.name,
-                '사번': item.empId,
-                '신청 차수': item.session,
-                '입실 여부': item.checkIn ? (item.isManualIn ? '완료(수동)' : '완료') : '미출석',
-                '입실 시간': item.checkIn || '-',
-                '퇴실 여부': item.checkOut ? (item.isManualOut ? '완료(수동)' : '완료') : '-',
-                '퇴실 시간': item.checkOut || '-'
-            }));
-
-            const csvString = Papa.unparse(csvRows);
-            const blob = new Blob(['\uFEFF' + csvString], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `${sessionName}_${dateStr}.csv`;
-            link.click();
-        }
-    </script>
-</body>
-</html>
