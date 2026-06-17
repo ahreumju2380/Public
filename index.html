@@ -10,7 +10,7 @@
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
         .glass-card { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border: 1px solid #e2e8f0; border-radius: 1rem; }
-        .status-badge { padding: 0.15rem 0.4rem; border-radius: 9999px; font-size: 0.65rem; font-weight: 700; display: inline-flex; align-items: center; gap: 2px; line-height: 1.2; }
+        .status-badge { padding: 0.15rem 0.35rem; border-radius: 9999px; font-size: 0.625rem; font-weight: 700; display: inline-flex; align-items: center; gap: 2px; line-height: 1.2; }
         .status-present { background-color: #dcfce7; color: #166534; }
         .status-checkout { background-color: #dbeafe; color: #1e40af; }
         .status-absent { background-color: #fee2e2; color: #991b1b; }
@@ -105,7 +105,7 @@
                 </div>
             </div>
 
-            <!-- 메인 현황 테이블 (이틀 과정 문구 제외된 6열 균형 고정 레이아웃) -->
+            <!-- 메인 현황 테이블 (여백 최소화 및 너비 비례 고정) -->
             <div class="lg:col-span-2 space-y-6">
                 <div class="glass-card shadow-sm overflow-hidden">
                     <div class="p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -118,20 +118,21 @@
                         </div>
                     </div>
                     <div class="overflow-x-auto min-h-[400px]">
-                        <table class="w-full text-left border-collapse table-fixed min-w-[850px]">
+                        <!-- min-w 값을 720px로 낮춰 표준 해상도 데스크톱 뷰에서 스크롤바가 생기지 않도록 방어 -->
+                        <table class="w-full text-left border-collapse table-fixed min-w-[720px]">
                             <thead>
                                 <tr class="bg-slate-50 text-slate-500 text-[11px] uppercase tracking-wider font-bold">
-                                    <th class="px-3 py-4 border-b border-slate-100 w-[15%]">학습자 정보</th>
-                                    <th class="px-3 py-4 border-b border-slate-100 w-[21%]">신청 차수</th>
-                                    <th class="px-3 py-4 border-b border-slate-100 w-[16%]">1일차 입실</th>
-                                    <th class="px-3 py-4 border-b border-slate-100 w-[16%]">1일차 퇴실</th>
-                                    <th class="px-3 py-4 border-b border-slate-100 w-[16%]">2일차 입실</th>
-                                    <th class="px-3 py-4 border-b border-slate-100 w-[16%]">2일차 퇴실</th>
+                                    <th class="px-2 py-4 border-b border-slate-100 w-[14%]">학습자 정보</th>
+                                    <th class="px-2 py-4 border-b border-slate-100 w-[22%]">신청 차수</th>
+                                    <th class="px-2 py-4 border-b border-slate-100 w-[16%]">1일차 입실</th>
+                                    <th class="px-2 py-4 border-b border-slate-100 w-[16%]">1일차 퇴실</th>
+                                    <th class="px-2 py-4 border-b border-slate-100 w-[16%]">2일차 입실</th>
+                                    <th class="px-2 py-4 border-b border-slate-100 w-[16%]">2일차 퇴실</th>
                                 </tr>
                             </thead>
                             <tbody id="attendance-table-body" class="divide-y divide-slate-100 text-sm">
                                 <tr>
-                                    <td colspan="6" class="px-3 py-12 text-center text-slate-400">
+                                    <td colspan="6" class="px-2 py-12 text-center text-slate-400">
                                         구글 시트로부터 데이터를 연동하는 중입니다...
                                     </td>
                                 </tr>
@@ -368,7 +369,7 @@
             }
 
             if (state.masterData.length === 0) {
-                tableBody.innerHTML = `<tr><td colspan="6" class="px-3 py-12 text-center text-slate-400 font-medium">구글 시트 연동 대기 중이거나 '마스터명단' 시트가 비어있습니다.</td></tr>`;
+                tableBody.innerHTML = `<tr><td colspan="6" class="px-2 py-12 text-center text-slate-400 font-medium">구글 시트 연동 대기 중이거나 '마스터명단' 시트가 비어있습니다.</td></tr>`;
                 return;
             }
 
@@ -386,7 +387,7 @@
                 const row = document.createElement('tr');
                 row.className = (item.checkIn1 || item.checkIn2) ? 'bg-blue-50/10' : 'hover:bg-slate-50 transition-colors';
                                 
-                // 1일차 입실 셀
+                // 1일차 입실 셀 (padding px-2로 축소)
                 let in1Content = '';
                 if (item.checkIn1) {
                     in1Content = `
@@ -405,7 +406,7 @@
                     `;
                 }
 
-                // 1일차 퇴실 셀
+                // 1일차 퇴실 셀 (padding px-2로 축소)
                 let out1Content = '';
                 if (item.checkOut1) {
                     out1Content = `
@@ -424,7 +425,7 @@
                     `;
                 }
 
-                // 2일차 입실 셀
+                // 2일차 입실 셀 (padding px-2로 축소)
                 let in2Content = '';
                 if (item.checkIn2) {
                     in2Content = `
@@ -443,7 +444,7 @@
                     `;
                 }
 
-                // 2일차 퇴실 셀
+                // 2일차 퇴실 셀 (padding px-2로 축소)
                 let out2Content = '';
                 if (item.checkOut2) {
                     out2Content = `
@@ -463,15 +464,15 @@
                 }
 
                 row.innerHTML = `
-                    <td class="px-3 py-3 w-[15%]">
+                    <td class="px-2 py-3 w-[14%]">
                         <!-- 개인정보보호 조치로 이름만 안전하게 노출하고 사번을 뺌 -->
                         <div class="font-bold text-slate-800 leading-tight">${item.name}</div>
                     </td>
-                    <td class="px-3 py-3 w-[21%] text-slate-600 font-medium text-xs break-all">${item.session || '-'}</td>
-                    <td class="px-3 py-3 w-[16%]">${in1Content}</td>
-                    <td class="px-3 py-3 w-[16%]">${out1Content}</td>
-                    <td class="px-3 py-3 w-[16%]">${in2Content}</td>
-                    <td class="px-3 py-3 w-[16%]">${out2Content}</td>
+                    <td class="px-2 py-3 w-[21%] text-slate-600 font-medium text-xs break-all">${item.session || '-'}</td>
+                    <td class="px-2 py-3 w-[16%]">${in1Content}</td>
+                    <td class="px-2 py-3 w-[16%]">${out1Content}</td>
+                    <td class="px-2 py-3 w-[16%]">${in2Content}</td>
+                    <td class="px-2 py-3 w-[16%]">${out2Content}</td>
                 `;
                 tableBody.appendChild(row);
             });
