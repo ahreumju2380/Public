@@ -46,14 +46,19 @@
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div class="space-y-6">
+                <!-- 마스터 명단 실시간 연동 카드 (디자인 유지) -->
                 <div class="glass-card p-6 shadow-sm border-l-4 border-blue-500">
-                    <h2 class="text-lg font-bold mb-4 flex items-center gap-2">
+                    <h2 class="text-lg font-bold mb-4 flex items-center gap-2 text-slate-800">
                         <svg class="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"></path></svg>
-                        학습자 마스터 명단 (CSV)
+                        학습자 마스터 명단 (실시간 연동)
                     </h2>
-                    <input type="file" id="csv-upload" accept=".csv" onchange="handleCSVUpload(event)" 
-                        class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer mb-2" />
-                    <p class="text-[11px] text-slate-400 leading-tight">* 필수 헤더: 성명, 사번, 신청 차수 정보</p>
+                    <div class="bg-slate-50 p-4 rounded-xl text-center border border-slate-100 mb-2">
+                        <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">구글 시트 연동 인원</p>
+                        <p id="master-count" class="text-2xl font-black text-blue-600">0명</p>
+                    </div>
+                    <p class="text-[11px] text-slate-400 leading-tight">
+                        * 구글 스프레드시트의 <span class="font-semibold text-slate-600">'마스터명단'</span> 시트에서 최신 대상자 데이터를 실시간으로 자동 동기화합니다.
+                    </p>
                 </div>
 
                 <div id="stats-container" class="glass-card p-6 shadow-sm">
@@ -110,7 +115,7 @@
                             <tbody id="attendance-table-body" class="divide-y divide-slate-100 text-sm">
                                 <tr>
                                     <td colspan="4" class="px-6 py-12 text-center text-slate-400">
-                                        마스터 명단 CSV 파일을 먼저 업로드해 주세요.
+                                        구글 시트로부터 데이터를 연동하는 중입니다...
                                     </td>
                                 </tr>
                             </tbody>
@@ -127,13 +132,14 @@
             attendanceData: [],
             manualEntries: JSON.parse(localStorage.getItem('attendance_manual_records')) || {},
             isLoading: false,
-            scriptUrl: 'https://script.google.com/macros/s/AKfycbwe0mGpYCfT8d3cLDqZlAT7lBt2IvnGqA0Hv0I8140tAY0nDwFNWg_Ut19KGKHEe5GjWQ/exec'
+            // 전달해주신 고유 웹 앱 URL 주소로 교체 적용했습니다.
+            scriptUrl: 'https://script.google.com/macros/s/AKfycbyfunJwOJL4wlYMUc37MNDbEt69H2vS-bSh67ezYuny_72VrzZ_PHTVMClKqBTtJ0Ib/exec'
         };
 
         window.onload = () => {
             updateSessionFilter();
             render();
-            if (state.masterData.length > 0) fetchSheetData();
+            fetchSheetData(); 
         };
 
         function toggleManual(empId, type) {
@@ -153,27 +159,6 @@
             render();
         }
 
-        function handleCSVUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            Papa.parse(file, {
-                header: true,
-                skipEmptyLines: true,
-                complete: function(results) {
-                    state.masterData = results.data.map(row => ({
-                        name: String(row['성명'] || '').trim(),
-                        empId: String(row['사번'] || '').trim(),
-                        session: String(row['신청 차수 정보'] || '').trim()
-                    })).filter(s => s.name && s.empId);
-
-                    localStorage.setItem('attendance_master_db', JSON.stringify(state.masterData));
-                    updateSessionFilter();
-                    render();
-                }
-            });
-        }
-
         async function fetchSheetData() {
             if (state.isLoading) return;
             const btn = document.getElementById('refresh-btn');
@@ -191,14 +176,29 @@
                 const responseText = await response.text();
                 const data = JSON.parse(responseText);
 
-                state.attendanceData = data.map(row => {
-                    let rawTime = row['날짜'] || row['타임스탬프'] || row['시간'] || '-';
-                    return {
+                // 1. 구글 스프레드시트의 '마스터명단'에서 학생 명단 연동
+                if (data.master && Array.isArray(data.master)) {
+                    state.masterData = data.master.map(row => ({
                         name: String(row['성명'] || row['이름'] || '').trim(),
                         empId: String(row['사번'] || '').trim(),
-                        timestamp: rawTime
-                    };
-                });
+                        session: String(row['신청 차수 정보'] || '').trim()
+                    })).filter(s => s.name && s.empId);
+
+                    localStorage.setItem('attendance_master_db', JSON.stringify(state.masterData));
+                    updateSessionFilter();
+                }
+
+                // 2. 구글 스프레드시트의 'Sheet1'에서 실시간 출결 정보 연동
+                if (data.attendance && Array.isArray(data.attendance)) {
+                    state.attendanceData = data.attendance.map(row => {
+                        let rawTime = row['날짜'] || row['타임스탬프'] || row['시간'] || '-';
+                        return {
+                            name: String(row['성명'] || row['이름'] || '').trim(),
+                            empId: String(row['사번'] || '').trim(),
+                            timestamp: rawTime
+                        };
+                    });
+                }
             } catch (err) {
                 console.error("데이터 로드 실패:", err);
             } finally {
@@ -251,7 +251,16 @@
 
         function render() {
             const tableBody = document.getElementById('attendance-table-body');
-            if (state.masterData.length === 0) return;
+            
+            const masterCountEl = document.getElementById('master-count');
+            if (masterCountEl) {
+                masterCountEl.textContent = `${state.masterData.length}명`;
+            }
+
+            if (state.masterData.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="4" class="px-6 py-12 text-center text-slate-400 font-medium">구글 시트 연동 대기 중이거나 '마스터명단' 시트가 비어있습니다.</td></tr>`;
+                return;
+            }
 
             const processed = getProcessedData();
             let presentCount = 0, checkoutCount = 0;
@@ -263,8 +272,8 @@
 
                 const row = document.createElement('tr');
                 row.className = item.checkIn ? 'bg-blue-50/20' : 'hover:bg-slate-50 transition-colors';
-                
-                // 입실 셀 HTML 생성
+                                
+                // 입실
                 let inContent = '';
                 if (item.checkIn) {
                     inContent = `
@@ -283,7 +292,7 @@
                     `;
                 }
 
-                // 퇴실 셀 HTML 생성
+                // 퇴실
                 let outContent = '';
                 if (item.checkOut) {
                     outContent = `
