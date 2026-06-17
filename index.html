@@ -118,16 +118,16 @@
                     </div>
                     <!-- overflow-x를 지원하되 최대한 가로 스크롤을 막기 위해 최소 너비 타이트 조정 -->
                     <div class="overflow-x-auto min-h-[400px]">
+                        <!-- 🚨 신청 차수의 글자 깨짐 방지를 위해 각 컬럼 너비를 유동성 있게 정밀 재조정하였습니다. -->
                         <table class="w-full text-left border-collapse table-fixed min-w-[760px]">
                             <thead>
                                 <tr class="bg-slate-50 text-slate-500 text-[10px] uppercase tracking-wider font-bold border-b border-slate-100">
-                                    <!-- 🚨 6개 열을 균등하게 세팅하여 미세 정밀 미적 밸런스를 이룹니다. -->
-                                    <th class="px-2.5 py-3 w-[16.6%]">학습자 정보</th>
-                                    <th class="px-2.5 py-3 w-[16.6%]">신청 차수</th>
-                                    <th class="px-2.5 py-3 w-[16.7%]">1일차 입실</th>
-                                    <th class="px-2.5 py-3 w-[16.7%]">1일차 퇴실</th>
-                                    <th class="px-2.5 py-3 w-[16.7%]">2일차 입실</th>
-                                    <th class="px-2.5 py-3 w-[16.7%]">2일차 퇴실</th>
+                                    <th class="px-2.5 py-3 w-[16%]">학습자 정보</th>
+                                    <th class="px-2.5 py-3 w-[22%]">신청 차수</th> <!-- 🚨 기존 16%에서 22%로 대폭 늘려 잘림을 방지합니다. -->
+                                    <th class="px-2.5 py-3 w-[15.5%]">1일차 입실</th>
+                                    <th class="px-2.5 py-3 w-[15.5%]">1일차 퇴실</th>
+                                    <th class="px-2.5 py-3 w-[15.5%]">2일차 입실</th>
+                                    <th class="px-2.5 py-3 w-[15.5%]">2일차 퇴실</th>
                                 </tr>
                             </thead>
                             <tbody id="attendance-table-body" class="divide-y divide-slate-100 text-xs">
@@ -412,13 +412,13 @@
                     `;
                 }
 
-                // 테이블 내부의 패딩을 px-2.5로 대폭 좁혀 미적으로 편안한 구도를 창조
+                // 🚨 신청차수 열에서 truncate를 완전히 배제하여 차수명이 줄바꿈 없이 온전하게 출력됩니다.
                 row.innerHTML = `
                     <td class="px-2.5 py-2.5">
                         <div class="font-bold text-slate-800 leading-tight">${item.name}</div>
                         <div class="text-[9px] text-slate-400 font-mono tracking-tight">${item.empId}</div>
                     </td>
-                    <td class="px-2.5 py-2.5 text-slate-600 font-medium text-[11px] truncate">${item.session || '-'}</td>
+                    <td class="px-2.5 py-2.5 text-slate-600 font-medium text-[11px] leading-snug break-all">${item.session || '-'}</td>
                     <td class="px-2.5 py-2.5">${in1Content}</td>
                     <td class="px-2.5 py-2.5">${out1Content}</td>
                     <td class="px-2.5 py-2.5">${in2Content}</td>
