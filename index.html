@@ -114,17 +114,17 @@
                             <select id="session-filter" onchange="render()" class="text-xs border rounded-lg px-2 py-1.5 outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50">
                                 <option value="all">모든 차수</option>
                             </select>
-                            <input type="text" id="search-filter" oninput="render()" placeholder="이름/사번 검색..." class="text-xs border rounded-lg px-2 py-1.5 outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 w-36 sm:w-44" />
+                            <!-- 🚨 개인정보 보호를 고려하여 사번 문구를 제거하고 이름 검색 위주로 개정 -->
+                            <input type="text" id="search-filter" oninput="render()" placeholder="이름 검색..." class="text-xs border rounded-lg px-2 py-1.5 outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 w-36 sm:w-44" />
                         </div>
                     </div>
                     <!-- overflow-x를 지원하되 최대한 가로 스크롤을 막기 위해 최소 너비 타이트 조정 -->
                     <div class="overflow-x-auto min-h-[400px]">
-                        <!-- 🚨 신청 차수의 글자 깨짐 방지를 위해 각 컬럼 너비를 유동성 있게 정밀 재조정하였습니다. -->
                         <table class="w-full text-left border-collapse table-fixed min-w-[760px]">
                             <thead>
                                 <tr class="bg-slate-50 text-slate-500 text-[10px] uppercase tracking-wider font-bold border-b border-slate-100">
                                     <th class="px-2.5 py-3 w-[16%]">학습자 정보</th>
-                                    <th class="px-2.5 py-3 w-[22%]">신청 차수</th> <!-- 🚨 기존 16%에서 22%로 대폭 늘려 잘림을 방지합니다. -->
+                                    <th class="px-2.5 py-3 w-[22%]">신청 차수</th>
                                     <th class="px-2.5 py-3 w-[15.5%]">1일차 입실</th>
                                     <th class="px-2.5 py-3 w-[15.5%]">1일차 퇴실</th>
                                     <th class="px-2.5 py-3 w-[15.5%]">2일차 입실</th>
@@ -179,7 +179,7 @@
             }, 1000);
         }
 
-        // 🚨 이틀치 현황판 공간 최대 확보를 위해 "YY.MM.DD." 초슬림 날짜 포맷 구현
+        // 이틀치 현황판 공간 최대 확보를 위해 "YY.MM.DD." 초슬림 날짜 포맷 구현
         function formatDisplayTime(timeStr) {
             if (!timeStr || timeStr === '-') return '-';
             if (timeStr.includes('(수동)')) {
@@ -188,7 +188,6 @@
             try {
                 const dateObj = new Date(timeStr);
                 if (!isNaN(dateObj.getTime())) {
-                    // "26. 06. 17." 규격을 생성한 뒤 공백을 없애서 최종 "26.06.17." 8글자로 대폭 축소
                     return dateObj.toLocaleDateString('ko-KR', {
                         year: '2-digit',
                         month: '2-digit',
@@ -437,11 +436,10 @@
                     `;
                 }
 
-                // 🚨 신청차수 열에서 truncate를 완전히 배제하여 차수명이 줄바꿈 없이 온전하게 출력됩니다.
+                // 🚨 개인정보 보호: 학습자 정보 컬럼에서 ${item.empId} 텍스트 노출부를 완전히 배제했습니다.
                 row.innerHTML = `
                     <td class="px-2.5 py-2.5">
                         <div class="font-bold text-slate-800 leading-tight">${item.name}</div>
-                        <div class="text-[9px] text-slate-400 font-mono tracking-tight">${item.empId}</div>
                     </td>
                     <td class="px-2.5 py-2.5 text-slate-600 font-medium text-[11px] leading-snug break-all">${item.session || '-'}</td>
                     <td class="px-2.5 py-2.5">${in1Content}</td>
