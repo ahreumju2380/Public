@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>출석 및 퇴실 실시간 모니터링 시스템</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
+        .glass-card { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border: 1px solid #e2e8f0; border-radius: 1rem; }
+        .status-badge { padding: 0.15rem 0.6rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; line-height: 1.2; }
+        .status-present { background-color: #dcfce7; color: #166534; }
+        .status-checkout { background-color: #dbeafe; color: #1e40af; }
+        .status-absent { background-color: #fee2e2; color: #991b1b; }
+        
+        /* 슬림한 수동 버튼 스타일 */
+        .btn-manual { font-size: 10px; background-color: #f8fafc; color: #64748b; padding: 2px 6px; border-radius: 4px; border: 1px solid #e2e8f0; transition: all 0.2s; cursor: pointer; white-space: nowrap; }
+        .btn-manual:hover { background-color: #f1f5f9; border-color: #cbd5e1; }
+        .btn-cancel { border-color: #fecaca; color: #ef4444; background-color: #fff; }
+        .btn-cancel:hover { background-color: #fef2f2; }
+        
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .animate-spin-custom { animation: spin 1s linear infinite; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div id="app" class="max-w-6xl mx-auto">
+        <header class="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+            <div>
+                <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">출석/퇴실 모니터링 대시보드</h1>
+                <p class="text-slate-500 mt-1">학습자의 입실 및 퇴실 현황을 실시간으로 관리합니다.</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button id="download-btn" onclick="downloadAttendanceCSV()" class="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold shadow hover:bg-emerald-700 transition-all text-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    결과 다운로드
+                </button>
+                <button id="refresh-btn" onclick="fetchSheetData()" class="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl font-bold shadow hover:bg-blue-700 transition-all text-sm">
+                    <svg id="refresh-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    <span id="refresh-text">데이터 새로고침</span>
+                </button>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="space-y-6">
+                <div class="glass-card p-6 shadow-sm border-l-4 border-blue-500">
+                    <h2 class="text-lg font-bold mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"></path></svg>
+                        학습자 마스터 명단 (CSV)
+                    </h2>
+                    <input type="file" id="csv-upload" accept=".csv" onchange="handleCSVUpload(event)" 
+                        class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer mb-2" />
+                    <p class="text-[11px] text-slate-400 leading-tight">* 필수 헤더: 성명, 사번, 신청 차수 정보</p>
+                </div>
+
+                <div id="stats-container" class="glass-card p-6 shadow-sm">
+                    <h2 class="text-lg font-bold mb-4">전체 현황 요약</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <span class="text-slate-500">입실 완료율</span>
+                                <span id="attendance-percent" class="font-bold text-green-600">0%</span>
+                            </div>
+                            <div class="w-full bg-slate-100 rounded-full h-2.5">
+                                <div id="attendance-bar" class="bg-green-500 h-2.5 rounded-full transition-all duration-1000" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-3 gap-2 pt-2">
+                            <div class="bg-slate-50 p-3 rounded-xl text-center border border-slate-100">
+                                <p class="text-[10px] text-slate-400 uppercase font-bold">대상</p>
+                                <p id="total-count" class="text-xl font-black text-slate-800">0</p>
+                            </div>
+                            <div class="bg-green-50 p-3 rounded-xl text-center border border-green-100">
+                                <p class="text-[10px] text-green-500 uppercase font-bold">입실</p>
+                                <p id="present-count" class="text-xl font-black text-green-600">0</p>
+                            </div>
+                            <div class="bg-blue-50 p-3 rounded-xl text-center border border-blue-100">
+                                <p class="text-[10px] text-blue-500 uppercase font-bold">퇴실</p>
+                                <p id="checkout-count" class="text-xl font-black text-blue-600">0</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-2 space-y-6">
+                <div class="glass-card shadow-sm overflow-hidden">
+                    <div class="p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <h2 class="text-lg font-bold">입/퇴실 상세 현황</h2>
+                        <div class="flex gap-2">
+                            <select id="session-filter" onchange="render()" class="text-sm border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="all">모든 차수</option>
+                            </select>
+                            <input type="text" id="search-filter" oninput="render()" placeholder="이름/사번 검색..." class="text-sm border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500" />
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto min-h-[400px]">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50 text-slate-500 text-[11px] uppercase tracking-wider font-bold">
+                                    <th class="px-6 py-4">학습자 정보</th>
+                                    <th class="px-6 py-4">신청 차수</th>
+                                    <th class="px-6 py-4">입실 정보</th>
+                                    <th class="px-6 py-4">퇴실 정보</th>
+                                </tr>
+                            </thead>
+                            <tbody id="attendance-table-body" class="divide-y divide-slate-100 text-sm">
+                                <tr>
+                                    <td colspan="4" class="px-6 py-12 text-center text-slate-400">
+                                        마스터 명단 CSV 파일을 먼저 업로드해 주세요.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const state = {
+            masterData: JSON.parse(localStorage.getItem('attendance_master_db')) || [],
+            attendanceData: [],
+            manualEntries: JSON.parse(localStorage.getItem('attendance_manual_records')) || {},
+            isLoading: false,
+            scriptUrl: 'https://script.google.com/macros/s/AKfycbwe0mGpYCfT8d3cLDqZlAT7lBt2IvnGqA0Hv0I8140tAY0nDwFNWg_Ut19KGKHEe5GjWQ/exec'
+        };
+
+        window.onload = () => {
+            updateSessionFilter();
+            render();
+            if (state.masterData.length > 0) fetchSheetData();
+        };
+
+        function toggleManual(empId, type) {
+            if (state.manualEntries[empId] && state.manualEntries[empId][type]) {
+                delete state.manualEntries[empId][type];
+                if (Object.keys(state.manualEntries[empId]).length === 0) delete state.manualEntries[empId];
+            } else {
+                const now = new Date();
+                const timeStr = now.toLocaleString('ko-KR', {
+                    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
+                }) + " (수동)";
+                
+                if (!state.manualEntries[empId]) state.manualEntries[empId] = {};
+                state.manualEntries[empId][type] = timeStr;
+            }
+            localStorage.setItem('attendance_manual_records', JSON.stringify(state.manualEntries));
+            render();
+        }
+
+        function handleCSVUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    state.masterData = results.data.map(row => ({
+                        name: String(row['성명'] || '').trim(),
+                        empId: String(row['사번'] || '').trim(),
+                        session: String(row['신청 차수 정보'] || '').trim()
+                    })).filter(s => s.name && s.empId);
+
+                    localStorage.setItem('attendance_master_db', JSON.stringify(state.masterData));
+                    updateSessionFilter();
+                    render();
+                }
+            });
+        }
+
+        async function fetchSheetData() {
+            if (state.isLoading) return;
+            const btn = document.getElementById('refresh-btn');
+            const icon = document.getElementById('refresh-icon');
+            const text = document.getElementById('refresh-text');
+
+            state.isLoading = true;
+            btn.disabled = true;
+            icon.classList.add('animate-spin-custom');
+            text.textContent = '불러오는 중...';
+
+            try {
+                const response = await fetch(state.scriptUrl);
+                if (!response.ok) throw new Error("서버 응답 오류");
+                const responseText = await response.text();
+                const data = JSON.parse(responseText);
+
+                state.attendanceData = data.map(row => {
+                    let rawTime = row['날짜'] || row['타임스탬프'] || row['시간'] || '-';
+                    return {
+                        name: String(row['성명'] || row['이름'] || '').trim(),
+                        empId: String(row['사번'] || '').trim(),
+                        timestamp: rawTime
+                    };
+                });
+            } catch (err) {
+                console.error("데이터 로드 실패:", err);
+            } finally {
+                state.isLoading = false;
+                btn.disabled = false;
+                icon.classList.remove('animate-spin-custom');
+                text.textContent = '데이터 새로고침';
+                render();
+            }
+        }
+
+        function updateSessionFilter() {
+            const filter = document.getElementById('session-filter');
+            const sessions = [...new Set(state.masterData.map(s => s.session))].sort();
+            filter.innerHTML = '<option value="all">모든 차수</option>';
+            sessions.forEach(s => {
+                if (!s) return;
+                const opt = document.createElement('option');
+                opt.value = s;
+                opt.textContent = s; 
+                filter.appendChild(opt);
+            });
+        }
+
+        function getProcessedData() {
+            const sessionVal = document.getElementById('session-filter').value;
+            const searchVal = document.getElementById('search-filter').value.toLowerCase();
+
+            const filteredMaster = state.masterData.filter(s => {
+                const matchesSession = sessionVal === 'all' || s.session === sessionVal;
+                const matchesSearch = s.name.toLowerCase().includes(searchVal) || s.empId.includes(searchVal);
+                return matchesSession && matchesSearch;
+            });
+
+            return filteredMaster.map(student => {
+                const studentEntries = state.attendanceData.filter(a => a.empId === student.empId);
+                const sheetIn = studentEntries[0]?.timestamp || null;
+                const sheetOut = studentEntries[1]?.timestamp || null;
+                const manual = state.manualEntries[student.empId] || {};
+
+                return {
+                    ...student,
+                    checkIn: manual.in || sheetIn,
+                    checkOut: manual.out || sheetOut,
+                    isManualIn: !!manual.in,
+                    isManualOut: !!manual.out
+                };
+            });
+        }
+
+        function render() {
+            const tableBody = document.getElementById('attendance-table-body');
+            if (state.masterData.length === 0) return;
+
+            const processed = getProcessedData();
+            let presentCount = 0, checkoutCount = 0;
+            tableBody.innerHTML = '';
+
+            processed.forEach(item => {
+                if (item.checkIn) presentCount++;
+                if (item.checkOut) checkoutCount++;
+
+                const row = document.createElement('tr');
+                row.className = item.checkIn ? 'bg-blue-50/20' : 'hover:bg-slate-50 transition-colors';
+                
+                // 입실 셀 HTML 생성
+                let inContent = '';
+                if (item.checkIn) {
+                    inContent = `
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <span class="status-badge status-present">입실완료</span>
+                            <span class="text-[11px] text-slate-400 font-mono">${item.checkIn}</span>
+                            ${item.isManualIn ? `<button onclick="toggleManual('${item.empId}', 'in')" class="btn-manual btn-cancel">취소</button>` : ''}
+                        </div>
+                    `;
+                } else {
+                    inContent = `
+                        <div class="flex items-center gap-2">
+                            <span class="status-badge status-absent">미출석</span>
+                            <button onclick="toggleManual('${item.empId}', 'in')" class="btn-manual">수동</button>
+                        </div>
+                    `;
+                }
+
+                // 퇴실 셀 HTML 생성
+                let outContent = '';
+                if (item.checkOut) {
+                    outContent = `
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <span class="status-badge status-checkout">퇴실완료</span>
+                            <span class="text-[11px] text-slate-400 font-mono">${item.checkOut}</span>
+                            ${item.isManualOut ? `<button onclick="toggleManual('${item.empId}', 'out')" class="btn-manual btn-cancel">취소</button>` : ''}
+                        </div>
+                    `;
+                } else {
+                    outContent = `
+                        <div class="flex items-center gap-2">
+                            <span class="text-slate-300 text-xs mr-1">-</span>
+                            ${item.checkIn ? `<button onclick="toggleManual('${item.empId}', 'out')" class="btn-manual">수동</button>` : ''}
+                        </div>
+                    `;
+                }
+
+                row.innerHTML = `
+                    <td class="px-6 py-3">
+                        <div class="font-bold text-slate-800 leading-tight">${item.name}</div>
+                        <div class="text-[10px] text-slate-400 font-mono">${item.empId}</div>
+                    </td>
+                    <td class="px-6 py-3 text-slate-600 font-medium text-xs">${item.session || '-'}</td>
+                    <td class="px-6 py-3">${inContent}</td>
+                    <td class="px-6 py-3">${outContent}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+
+            const total = processed.length || 0;
+            const percent = total > 0 ? Math.round((presentCount / total) * 100) : 0;
+            document.getElementById('total-count').textContent = total;
+            document.getElementById('present-count').textContent = presentCount;
+            document.getElementById('checkout-count').textContent = checkoutCount;
+            document.getElementById('attendance-percent').textContent = `${percent}%`;
+            document.getElementById('attendance-bar').style.width = `${percent}%`;
+        }
+
+        function downloadAttendanceCSV() {
+            const sessionVal = document.getElementById('session-filter').value;
+            const sessionName = sessionVal === 'all' ? '전체차수' : sessionVal;
+            const now = new Date();
+            const dateStr = now.getFullYear().toString().slice(-2) + 
+                            (now.getMonth() + 1).toString().padStart(2, '0') + 
+                            now.getDate().toString().padStart(2, '0');
+
+            const processed = getProcessedData();
+            const csvRows = processed.map(item => ({
+                '성명': item.name,
+                '사번': item.empId,
+                '신청 차수': item.session,
+                '입실 여부': item.checkIn ? (item.isManualIn ? '완료(수동)' : '완료') : '미출석',
+                '입실 시간': item.checkIn || '-',
+                '퇴실 여부': item.checkOut ? (item.isManualOut ? '완료(수동)' : '완료') : '-',
+                '퇴실 시간': item.checkOut || '-'
+            }));
+
+            const csvString = Papa.unparse(csvRows);
+            const blob = new Blob(['\uFEFF' + csvString], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `${sessionName}_${dateStr}.csv`;
+            link.click();
+        }
+    </script>
+</body>
+</html>
