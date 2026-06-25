@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WORK-UP 프로그램 입/퇴실 모니터링 대시보드</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
+        .glass-card { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border: 1px solid #e2e8f0; border-radius: 1rem; }
+        .status-badge { padding: 0.15rem 0.35rem; border-radius: 9999px; font-size: 0.625rem; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; line-height: 1.2; }
+        .status-present { background-color: #dcfce7; color: #166534; }
+        .status-checkout { background-color: #dbeafe; color: #1e40af; }
+        .status-absent { background-color: #fee2e2; color: #991b1b; }
+        
+        /* 슬림한 수동 버튼 스타일 */
+        .btn-manual { font-size: 9px; background-color: #f8fafc; color: #64748b; padding: 1px 4px; border-radius: 4px; border: 1px solid #e2e8f0; transition: all 0.2s; cursor: pointer; white-space: nowrap; }
+        .btn-manual:hover { background-color: #f1f5f9; border-color: #cbd5e1; }
+        .btn-cancel { border-color: #fecaca; color: #ef4444; background-color: #fff; }
+        .btn-cancel:hover { background-color: #fef2f2; }
+        
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .animate-spin-custom { animation: spin 1s linear infinite; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div id="app" class="max-w-6xl mx-auto">
+        <header class="flex flex-col lg:flex-row lg:items-center justify-between mb-8 gap-4 border-b border-slate-200/60 pb-5">
+            <div>
+                <h1 class="text-xl md:text-2xl font-extrabold text-slate-900 tracking-tight leading-none">WORK-UP 프로그램 입/퇴실 모니터링 대시보드</h1>
+                <p class="text-slate-400 text-xs md:text-sm mt-1.5">학습자의 입실 및 퇴실 현황을 실시간으로 관리합니다.</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2 shrink-0">
+                <!-- 15초 실시간 카운트다운 타이머 배지 -->
+                <span id="timer-badge" class="bg-blue-50 text-blue-600 text-xs font-bold px-3 py-1.5 rounded-xl border border-blue-100 flex items-center gap-1">15초 후 갱신</span>
+                
+                <button id="download-btn" onclick="downloadAttendanceCSV()" class="flex items-center gap-1.5 bg-emerald-600 text-white px-3.5 py-2 rounded-xl font-bold shadow hover:bg-emerald-700 transition-all text-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    결과 다운로드
+                </button>
+                <button id="refresh-btn" onclick="fetchSheetData(); resetTimer();" class="flex items-center gap-1.5 bg-blue-600 text-white px-3.5 py-2 rounded-xl font-bold shadow hover:bg-blue-700 transition-all text-sm">
+                    <svg id="refresh-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    <span id="refresh-text">데이터 새로고침</span>
+                </button>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="space-y-6">
+                <!-- 마스터 명단 실시간 연동 카드 (디자인 유지) -->
+                <div class="glass-card p-6 shadow-sm border-l-4 border-blue-500">
+                    <h2 class="text-lg font-bold mb-4 flex items-center gap-2 text-slate-800">
+                        <svg class="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"></path></svg>
+                        학습자 마스터 명단 (실시간 연동)
+                    </h2>
+                    <div class="bg-slate-50 p-4 rounded-xl text-center border border-slate-100 mb-2">
+                        <p id="master-count" class="text-2xl font-black text-blue-600">0명</p>
+                    </div>
+                    <p class="text-[11px] text-slate-400 leading-tight">
+                        * 구글 스프레드시트의 <span class="font-semibold text-slate-600">'마스터명단'</span> 시트에서 최신 대상자 데이터를 실시간으로 자동 동기화합니다.
+                    </p>
+                </div>
+
+                <!-- 전체 현황 요약 카드 -->
+                <div id="stats-container" class="glass-card p-6 shadow-sm">
+                    <h2 class="text-lg font-bold mb-4">전체 현황 요약</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <span class="text-slate-500">전체 출석 완료율</span>
+                                <span id="attendance-percent" class="font-bold text-green-600">0%</span>
+                            </div>
+                            <div class="w-full bg-slate-100 rounded-full h-2.5">
+                                <div id="attendance-bar" class="bg-green-500 h-2.5 rounded-full transition-all duration-1000" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="space-y-3 pt-2">
+                            <div class="bg-slate-50 p-3 rounded-xl flex justify-between items-center border border-slate-100">
+                                <span class="text-xs text-slate-500 font-bold">총 관리 대상</span>
+                                <span id="total-count" class="text-base font-extrabold text-slate-800">0명</span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div class="bg-green-50 p-3 rounded-xl text-center border border-green-100">
+                                    <p class="text-[9px] text-green-500 uppercase font-bold">1일차 입실</p>
+                                    <p id="present1-count" class="text-lg font-black text-green-600">0</p>
+                                </div>
+                                <div class="bg-blue-50 p-3 rounded-xl text-center border border-blue-100">
+                                    <p class="text-[9px] text-blue-500 uppercase font-bold">1일차 퇴실</p>
+                                    <p id="checkout1-count" class="text-lg font-black text-blue-600">0</p>
+                                </div>
+                                <div class="bg-emerald-50 p-3 rounded-xl text-center border border-emerald-100">
+                                    <p class="text-[9px] text-emerald-500 uppercase font-bold">2일차 입실</p>
+                                    <p id="present2-count" class="text-lg font-black text-emerald-600">0</p>
+                                </div>
+                                <div class="bg-indigo-50 p-3 rounded-xl text-center border border-indigo-100">
+                                    <p class="text-[9px] text-indigo-500 uppercase font-bold">2일차 퇴실</p>
+                                    <p id="checkout2-count" class="text-lg font-black text-indigo-600">0</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 메인 현황 테이블 -->
+            <div class="lg:col-span-2 space-y-6">
+                <div class="glass-card shadow-sm overflow-hidden">
+                    <div class="p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <h2 class="text-lg font-bold">입/퇴실 상세 현황</h2>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <div class="flex items-center gap-2">
+                                <select id="session-filter" onchange="render()" class="text-sm border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                                    <option value="all">모든 차수</option>
+                                </select>
+                                <!-- 📅 차수별 일정을 예쁘게 보여주는 스마트 일정 배지 -->
+                                <span id="session-date-badge" class="hidden bg-blue-50 text-blue-600 text-xs font-bold px-2.5 py-2 rounded-lg border border-blue-200 tracking-tight transition-all"></span>
+                            </div>
+                            <input type="text" id="search-filter" oninput="render()" placeholder="이름 검색..." class="text-sm border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500" />
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto min-h-[400px]">
+                        <table class="w-full text-left border-collapse table-fixed min-w-[720px]">
+                            <thead>
+                                <tr class="bg-slate-50 text-slate-500 text-[11px] uppercase tracking-wider font-bold">
+                                    <th class="px-2 py-4 border-b border-slate-100 w-[14%]">학습자 정보</th>
+                                    <th class="px-2 py-4 border-b border-slate-100 w-[22%]">신청 차수</th>
+                                    <th class="px-2 py-4 border-b border-slate-100 w-[16%]">1일차 입실</th>
+                                    <th class="px-2 py-4 border-b border-slate-100 w-[16%]">1일차 퇴실</th>
+                                    <th class="px-2 py-4 border-b border-slate-100 w-[16%]">2일차 입실</th>
+                                    <th class="px-2 py-4 border-b border-slate-100 w-[16%]">2일차 퇴실</th>
+                                </tr>
+                            </thead>
+                            <tbody id="attendance-table-body" class="divide-y divide-slate-100 text-sm">
+                                <tr>
+                                    <td colspan="6" class="px-2 py-12 text-center text-slate-400">
+                                        구글 시트로부터 데이터를 연동하는 중입니다...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const state = {
+            masterData: JSON.parse(localStorage.getItem('attendance_master_db')) || [],
+            attendanceData: [],
+            manualEntries: JSON.parse(localStorage.getItem('attendance_manual_records')) || {},
+            isLoading: false,
+            autoRefreshCountdown: 15, // 15초 자동 새로고침 설정
+            scriptUrl: 'https://script.google.com/macros/s/AKfycbyfunJwOJL4wlYMUc37MNDbEt69H2vS-bSh67ezYuny_72VrzZ_PHTVMClKqBTtJ0Ib/exec'
+        };
+
+        let timerInterval = null;
+
+        window.onload = () => {
+            updateSessionFilter();
+            render();
+            fetchSheetData(); 
+            startTimer();
+        };
+
+        // 15초 자동 새로고침 타이머 기동
+        function startTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                if (state.isLoading) return;
+                state.autoRefreshCountdown--;
+                if (state.autoRefreshCountdown <= 0) {
+                    fetchSheetData();
+                } else {
+                    updateTimerUI();
+                }
+            }, 1000);
+        }
+
+        // 수동 새로고침 클릭 시 타이머 리셋 제어
+        function resetTimer() {
+            state.autoRefreshCountdown = 15;
+            updateTimerUI();
+            startTimer();
+        }
+
+        function updateTimerUI() {
+            const el = document.getElementById('timer-badge');
+            if (el) {
+                el.textContent = `${state.autoRefreshCountdown}초 후 갱신`;
+            }
+        }
+
+        // 구글 시트에서 넘어온 ISO 8601 시각 정보를 초슬림 날짜(YY.MM.DD.) 형식으로 교정
+        function formatDisplayTime(timeStr) {
+            if (!timeStr || timeStr === '-') return '-';
+            if (timeStr.includes('수동')) return timeStr;
+            try {
+                const dateObj = new Date(timeStr);
+                if (!isNaN(dateObj.getTime())) {
+                    const yy = String(dateObj.getFullYear()).slice(-2);
+                    const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+                    const dd = String(dateObj.getDate()).padStart(2, '0');
+                    return `${yy}.${mm}.${dd}.`;
+                }
+            } catch (e) {
+                console.error("시간 변환 에러:", e);
+            }
+            return timeStr;
+        }
+
+        // 다운로드용 엑셀(CSV) 전용 정밀 시각(YYYY-MM-DD HH:mm:ss) 변환 필터
+        function formatCSVTime(timeStr) {
+            if (!timeStr || timeStr === '-') return '-';
+            if (timeStr.includes('수동')) return timeStr;
+            try {
+                const dateObj = new Date(timeStr);
+                if (!isNaN(dateObj.getTime())) {
+                    const yyyy = dateObj.getFullYear();
+                    const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+                    const dd = String(dateObj.getDate()).padStart(2, '0');
+                    const hh = String(dateObj.getHours()).padStart(2, '0');
+                    const mi = String(dateObj.getMinutes()).padStart(2, '0');
+                    const ss = String(dateObj.getSeconds()).padStart(2, '0');
+                    return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
+                }
+            } catch (e) {}
+            return timeStr;
+        }
+
+        // 🌟 차수명에서 날짜가 적힌 두 번째 괄호 블록을 지우고 깔끔하게 표기하는 헬퍼 함수
+        function formatDisplaySession(sessionStr) {
+            if (!sessionStr) return '-';
+            const bracketMatches = [...sessionStr.matchAll(/\(([^)]+)\)/g)];
+            if (bracketMatches.length > 0) {
+                // 숫자와 날짜 연관 기호가 섞여있는 날짜형 괄호를 매칭
+                const dateBlock = bracketMatches.find(m => {
+                    const content = m[1];
+                    return /\d/.test(content) && /[\/~.\-월일]/.test(content);
+                });
+                
+                if (dateBlock) {
+                    // 날짜 괄호를 떼어내고, 혹시 뒤에 남을지 모르는 언더바(_)까지 깔끔하게 제거
+                    return sessionStr.replace(dateBlock[0], '').trim().replace(/_$/, '');
+                }
+            }
+            return sessionStr;
+        }
+
+        // 수동 마킹 시스템
+        function toggleManual(empId, type) {
+            const today = new Date();
+            const yy = String(today.getFullYear()).slice(-2);
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            const formattedToday = `${yy}.${mm}.${dd}. (수동)`;
+
+            if (state.manualEntries[empId] && state.manualEntries[empId][type]) {
+                delete state.manualEntries[empId][type];
+                if (Object.keys(state.manualEntries[empId]).length === 0) delete state.manualEntries[empId];
+            } else {
+                if (!state.manualEntries[empId]) state.manualEntries[empId] = {};
+                state.manualEntries[empId][type] = formattedToday;
+            }
+            localStorage.setItem('attendance_manual_records', JSON.stringify(state.manualEntries));
+            render();
+        }
+
+        async function fetchSheetData() {
+            if (state.isLoading) return;
+            const btn = document.getElementById('refresh-btn');
+            const icon = document.getElementById('refresh-icon');
+            const text = document.getElementById('refresh-text');
+
+            state.isLoading = true;
+            btn.disabled = true;
+            icon.classList.add('animate-spin-custom');
+            text.textContent = '불러오는 중...';
+
+            try {
+                const cacheBuster = `_=${Date.now()}`;
+                const url = state.scriptUrl.includes('?') 
+                    ? `${state.scriptUrl}&${cacheBuster}` 
+                    : `${state.scriptUrl}?${cacheBuster}`;
+
+                const response = await fetch(url, {
+                    method: 'GET',
+                    credentials: 'omit', 
+                    mode: 'cors'
+                });
+
+                if (!response.ok) throw new Error("서버 응답 오류");
+                const responseText = await response.text();
+                const data = JSON.parse(responseText);
+
+                // 1. 구글 스프레드시트의 '마스터명단'에서 학생 명단 연동
+                if (data.master && Array.isArray(data.master)) {
+                    state.masterData = data.master.map(row => ({
+                        name: String(row['성명'] || row['이름'] || '').trim(),
+                        empId: String(row['사번'] || '').trim(),
+                        session: String(row['신청 차수 정보'] || '').trim()
+                    })).filter(s => s.name && s.empId);
+
+                    localStorage.setItem('attendance_master_db', JSON.stringify(state.masterData));
+                    updateSessionFilter(); 
+                }
+
+                // 2. 구글 스프레드시트의 'Sheet1'에서 실시간 출결 정보 연동
+                if (data.attendance && Array.isArray(data.attendance)) {
+                    state.attendanceData = data.attendance.map(row => {
+                        let rawTime = row['날짜'] || row['타임스탬프'] || row['시간'] || '-';
+                        return {
+                            name: String(row['성명'] || row['이름'] || '').trim(),
+                            empId: String(row['사번'] || '').trim(),
+                            timestamp: rawTime
+                        };
+                    });
+                }
+            } catch (err) {
+                console.error("데이터 로드 실패:", err);
+                const tableBody = document.getElementById('attendance-table-body');
+                if (tableBody) {
+                    tableBody.innerHTML = `
+                        <tr>
+                            <td colspan="6" class="px-2 py-8 text-center text-red-500 font-medium">
+                                <div class="max-w-md mx-auto bg-red-50 p-4 rounded-xl border border-red-100 text-left text-xs space-y-2 leading-relaxed">
+                                    <p class="font-bold text-sm text-red-700">⚠️ 데이터를 불러오는데 실패했습니다 (Failed to fetch)</p>
+                                    <p class="text-slate-600">이 오류는 주로 다음 원인으로 발생합니다:</p>
+                                    <ul class="list-disc pl-4 space-y-1 text-slate-500">
+                                        <li><strong>앱스 스크립트 배포 권한 오류:</strong> 스프레드시트 스크립트 배포 시 <strong>'액세스 권한이 있는 사용자'</strong>가 <strong>"모든 사용자(Anyone)"</strong>로 설정되었는지 확인하세요.</li>
+                                        <li><strong>브라우저 보호 기능:</strong> Adblock 등 광고 차단 스크립트가 구글 차단 필터로 작동 중인지 일시 해제해 보시기 바랍니다.</li>
+                                    </ul>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                }
+            } finally {
+                state.isLoading = false;
+                btn.disabled = false;
+                icon.classList.remove('animate-spin-custom');
+                text.textContent = '데이터 새로고침';
+                state.autoRefreshCountdown = 15; // 타이머 15초 리셋
+                updateTimerUI();
+                render();
+            }
+        }
+
+        // 실시간 갱신(15초) 시에도 기 선택된 차수 필터를 유지하도록 보존 처리 적용
+        function updateSessionFilter() {
+            const filter = document.getElementById('session-filter');
+            const currentSelected = filter.value; 
+            
+            const sessions = [...new Set(state.masterData.map(s => s.session))].sort();
+            filter.innerHTML = '<option value="all">모든 차수</option>';
+            sessions.forEach(s => {
+                if (!s) return;
+                const opt = document.createElement('option');
+                opt.value = s;
+                opt.textContent = formatDisplaySession(s); // 필터 드롭다운 목록에서도 깔끔하게 날짜괄호 생략
+                filter.appendChild(opt);
+            });
+
+            if (sessions.includes(currentSelected)) {
+                filter.value = currentSelected;
+            } else if (currentSelected === 'all') {
+                filter.value = 'all';
+            } else {
+                filter.value = 'all';
+            }
+        }
+
+        // 📅 선택한 차수 텍스트 안에서 날짜 포맷만 추출하여 배지에 띄워주는 함수
+        function updateSessionDateDisplay(selectedSession) {
+            const badge = document.getElementById('session-date-badge');
+            if (!badge) return;
+
+            if (selectedSession === 'all' || !selectedSession) {
+                badge.classList.add('hidden');
+                return;
+            }
+
+            const bracketMatches = [...selectedSession.matchAll(/\(([^)]+)\)/g)];
+            let extractedDate = "";
+
+            if (bracketMatches.length > 0) {
+                const dateBlock = bracketMatches.find(m => {
+                    const content = m[1];
+                    return /\d/.test(content) && /[\/~.\-월일]/.test(content);
+                });
+
+                if (dateBlock) {
+                    extractedDate = dateBlock[1].trim();
+                } else {
+                    const lastBlockWithDigits = bracketMatches.reverse().find(m => /\d/.test(m[1]));
+                    if (lastBlockWithDigits) {
+                        extractedDate = lastBlockWithDigits[1].trim();
+                    }
+                }
+            }
+
+            if (!extractedDate) {
+                const dateRangeMatch = selectedSession.match(/(\d{1,2}[\./-]\d{1,2}\s*~\s*\d{1,2}[\./-]\d{1,2})|(\d{1,2}[\./-]\d{1,2})/);
+                if (dateRangeMatch) {
+                    extractedDate = dateRangeMatch[0].trim();
+                }
+            }
+
+            if (extractedDate) {
+                badge.textContent = `📅 일정: ${extractedDate}`;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
+        // 출석 데이터를 시간 순으로 배열하여 1, 2일차 순서에 맞춤 할당
+        function getProcessedData() {
+            const sessionVal = document.getElementById('session-filter').value;
+            const searchVal = document.getElementById('search-filter').value.toLowerCase();
+
+            updateSessionDateDisplay(sessionVal);
+
+            const filteredMaster = state.masterData.filter(s => {
+                const matchesSession = sessionVal === 'all' || s.session === sessionVal;
+                const matchesSearch = s.name.toLowerCase().includes(searchVal) || s.empId.includes(searchVal);
+                return matchesSession && matchesSearch;
+            });
+
+            return filteredMaster.map(student => {
+                const studentEntries = state.attendanceData.filter(a => a.empId === student.empId);
+                
+                const sortedEntries = studentEntries.slice().sort((a, b) => {
+                    const tA = a.timestamp ? a.timestamp.replace(' ', 'T') : '';
+                    const tB = b.timestamp ? b.timestamp.replace(' ', 'T') : '';
+                    return new Date(tA) - new Date(tB);
+                });
+
+                const sheetIn1 = sortedEntries[0]?.timestamp || null;
+                const sheetOut1 = sortedEntries[1]?.timestamp || null;
+                const sheetIn2 = sortedEntries[2]?.timestamp || null;
+                const sheetOut2 = sortedEntries[3]?.timestamp || null;
+                
+                const manual = state.manualEntries[student.empId] || {};
+
+                return {
+                    ...student,
+                    rawIn1: sheetIn1,
+                    rawOut1: sheetOut1,
+                    rawIn2: sheetIn2,
+                    rawOut2: sheetOut2,
+                    checkIn1: manual.in || (sheetIn1 ? formatDisplayTime(sheetIn1) : null),
+                    checkOut1: manual.out || (sheetOut1 ? formatDisplayTime(sheetOut1) : null),
+                    checkIn2: manual.in2 || (sheetIn2 ? formatDisplayTime(sheetIn2) : null),
+                    checkOut2: manual.out2 || (sheetOut2 ? formatDisplayTime(sheetOut2) : null),
+                    isManualIn1: !!manual.in,
+                    isManualOut1: !!manual.out,
+                    isManualIn2: !!manual.in2,
+                    isManualOut2: !!manual.out2
+                };
+            });
+        }
+
+        function render() {
+            const tableBody = document.getElementById('attendance-table-body');
+            
+            const masterCountEl = document.getElementById('master-count');
+            if (masterCountEl) {
+                masterCountEl.textContent = `${state.masterData.length}명`;
+            }
+
+            if (state.masterData.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="6" class="px-2 py-12 text-center text-slate-400 font-medium">구글 시트 연동 대기 중이거나 '마스터명단' 시트가 비어있습니다.</td></tr>`;
+                return;
+            }
+
+            const processed = getProcessedData();
+            let present1Count = 0, checkout1Count = 0;
+            let present2Count = 0, checkout2Count = 0;
+            tableBody.innerHTML = '';
+
+            processed.forEach(item => {
+                if (item.checkIn1) present1Count++;
+                if (item.checkOut1) checkout1Count++;
+                if (item.checkIn2) present2Count++;
+                if (item.checkOut2) checkout2Count++;
+
+                const row = document.createElement('tr');
+                row.className = (item.checkIn1 || item.checkIn2) ? 'bg-blue-50/10' : 'hover:bg-slate-50 transition-colors';
+                                
+                // 1일차 입실 셀 (padding px-2로 축소)
+                let in1Content = '';
+                if (item.checkIn1) {
+                    in1Content = `
+                        <div class="flex items-center gap-1 flex-wrap">
+                            <span class="status-badge status-present">입실완료</span>
+                            <span class="text-[9px] text-slate-400 font-mono tracking-tighter">${item.checkIn1}</span>
+                            ${item.isManualIn1 ? `<button onclick="toggleManual('${item.empId}', 'in')" class="btn-manual btn-cancel">취소</button>` : ''}
+                        </div>
+                    `;
+                } else {
+                    in1Content = `
+                        <div class="flex items-center gap-1.5">
+                            <span class="status-badge status-absent">미출석</span>
+                            <button onclick="toggleManual('${item.empId}', 'in')" class="btn-manual">수동</button>
+                        </div>
+                    `;
+                }
+
+                // 1일차 퇴실 셀 (padding px-2로 축소)
+                let out1Content = '';
+                if (item.checkOut1) {
+                    out1Content = `
+                        <div class="flex items-center gap-1 flex-wrap">
+                            <span class="status-badge status-checkout">퇴실완료</span>
+                            <span class="text-[9px] text-slate-400 font-mono tracking-tighter">${item.checkOut1}</span>
+                            ${item.isManualOut1 ? `<button onclick="toggleManual('${item.empId}', 'out')" class="btn-manual btn-cancel">취소</button>` : ''}
+                        </div>
+                    `;
+                } else {
+                    out1Content = `
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-slate-300 text-xs mr-1">-</span>
+                            <button onclick="toggleManual('${item.empId}', 'out')" class="btn-manual">수동</button>
+                        </div>
+                    `;
+                }
+
+                // 2일차 입실 셀 (padding px-2로 축소)
+                let in2Content = '';
+                if (item.checkIn2) {
+                    in2Content = `
+                        <div class="flex items-center gap-1 flex-wrap">
+                            <span class="status-badge status-present">입실완료</span>
+                            <span class="text-[9px] text-slate-400 font-mono tracking-tighter">${item.checkIn2}</span>
+                            ${item.isManualIn2 ? `<button onclick="toggleManual('${item.empId}', 'in2')" class="btn-manual btn-cancel">취소</button>` : ''}
+                        </div>
+                    `;
+                } else {
+                    in2Content = `
+                        <div class="flex items-center gap-1.5">
+                            <span class="status-badge status-absent">미출석</span>
+                            <button onclick="toggleManual('${item.empId}', 'in2')" class="btn-manual">수동</button>
+                        </div>
+                    `;
+                }
+
+                // 2일차 퇴실 셀 (padding px-2로 축소)
+                let out2Content = '';
+                if (item.checkOut2) {
+                    out2Content = `
+                        <div class="flex items-center gap-1 flex-wrap">
+                            <span class="status-badge status-checkout">퇴실완료</span>
+                            <span class="text-[9px] text-slate-400 font-mono tracking-tighter">${item.checkOut2}</span>
+                            ${item.isManualOut2 ? `<button onclick="toggleManual('${item.empId}', 'out2')" class="btn-manual btn-cancel">취소</button>` : ''}
+                        </div>
+                    `;
+                } else {
+                    out2Content = `
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-slate-300 text-xs mr-1">-</span>
+                            <button onclick="toggleManual('${item.empId}', 'out2')" class="btn-manual">수동</button>
+                        </div>
+                    `;
+                }
+
+                row.innerHTML = `
+                    <td class="px-2 py-3 w-[14%]">
+                        <!-- 개인정보보호 조치로 이름만 안전하게 노출하고 사번을 뺌 -->
+                        <div class="font-bold text-slate-800 leading-tight">${item.name}</div>
+                    </td>
+                    <td class="px-2 py-3 w-[21%] text-slate-600 font-medium text-xs break-all">${formatDisplaySession(item.session)}</td>
+                    <td class="px-2 py-3 w-[16%]">${in1Content}</td>
+                    <td class="px-2 py-3 w-[16%]">${out1Content}</td>
+                    <td class="px-2 py-3 w-[16%]">${in2Content}</td>
+                    <td class="px-2 py-3 w-[16%]">${out2Content}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+
+            // 현황 종합 수치 카드 업데이트
+            const total = processed.length || 0;
+            const totalPossible = total * 4;
+            const totalActual = present1Count + checkout1Count + present2Count + checkout2Count;
+            const percent = totalPossible > 0 ? Math.round((totalActual / totalPossible) * 100) : 0;
+            
+            document.getElementById('total-count').textContent = `${total}명`;
+            document.getElementById('present1-count').textContent = present1Count;
+            document.getElementById('checkout1-count').textContent = checkout1Count;
+            document.getElementById('present2-count').textContent = present2Count;
+            document.getElementById('checkout2-count').textContent = checkout2Count;
+            
+            document.getElementById('attendance-percent').textContent = `${percent}%`;
+            document.getElementById('attendance-bar').style.width = `${percent}%`;
+        }
+
+        function downloadAttendanceCSV() {
+            const sessionVal = document.getElementById('session-filter').value;
+            const sessionName = sessionVal === 'all' ? '전체차수' : sessionVal;
+            const now = new Date();
+            const dateStr = now.getFullYear().toString().slice(-2) + 
+                            (now.getMonth() + 1).toString().padStart(2, '0') + 
+                            now.getDate().toString().padStart(2, '0');
+
+            const processed = getProcessedData();
+            const csvRows = processed.map(item => ({
+                '성명': item.name,
+                '사번': item.empId,
+                '신청 차수': item.session,
+                '1일차 입실 여부': item.checkIn1 ? (item.isManualIn1 ? '완료(수동)' : '완료') : '미출석',
+                '1일차 입실 시간': item.rawIn1 ? formatCSVTime(item.rawIn1) : (item.checkIn1 && item.isManualIn1 ? item.checkIn1 : '-'),
+                '1일차 퇴실 여부': item.checkOut1 ? (item.isManualOut1 ? '완료(수동)' : '완료') : '미퇴실',
+                '1일차 퇴실 시간': item.rawOut1 ? formatCSVTime(item.rawOut1) : (item.checkOut1 && item.isManualOut1 ? item.checkOut1 : '-'),
+                '2일차 입실 여부': item.checkIn2 ? (item.isManualIn2 ? '완료(수동)' : '완료') : '미출석',
+                '2일차 입실 시간': item.rawIn2 ? formatCSVTime(item.rawIn2) : (item.checkIn2 && item.isManualIn2 ? item.checkIn2 : '-'),
+                '2일차 퇴실 여부': item.checkOut2 ? (item.isManualOut2 ? '완료(수동)' : '완료') : '미퇴실',
+                '2일차 퇴실 시간': item.rawOut2 ? formatCSVTime(item.rawOut2) : (item.checkOut2 && item.isManualOut2 ? item.checkOut2 : '-')
+            }));
+
+            const csvString = Papa.unparse(csvRows);
+            const blob = new Blob(['\uFEFF' + csvString], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `WORK-UP_${sessionName}_${dateStr}.csv`;
+            link.click();
+        }
+    </script>
+</body>
+</html>
